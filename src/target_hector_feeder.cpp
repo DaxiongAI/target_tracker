@@ -26,8 +26,11 @@ public:
             for(int i = 0; i < blob_msg->blob_count; i++){
                 pp.pose.pose.position.x = blob_msg->blobs[i].x;
                 pp.pose.pose.position.y = blob_msg->blobs[i].y;
-                pp.pose.pose.position.z = 0;
-
+                pp.pose.pose.position.z = 0.0;
+                pp.pose.pose.orientation.x = 0.0;
+                pp.pose.pose.orientation.y = 0.0;
+                pp.pose.pose.orientation.z = 0.0;
+                pp.pose.pose.orientation.w = 0.0;
                 pp.pose.covariance[0]  = 1; //setting covariance
                 pp.pose.covariance[7]  = 1;
                 pp.pose.covariance[14] = 1;
