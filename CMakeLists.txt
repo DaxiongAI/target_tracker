@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   pcl_conversions
   pcl_ros
+  custom_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -89,7 +90,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES target_tracker
-  CATKIN_DEPENDS hector_object_tracker hector_worldmodel_msgs roscpp rospy std_msgs cv_bridge image_transport sensor_msgs
+  CATKIN_DEPENDS hector_object_tracker hector_worldmodel_msgs roscpp rospy std_msgs cv_bridge image_transport sensor_msgs custom_msgs
 #  DEPENDS system_lib
 )
 
@@ -117,7 +118,7 @@ add_executable(target_detector src/target_detector.cpp)
 add_executable(fake_detector src/fake_detector.cpp)
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(target_tracker_node target_tracker_generate_messages_cpp)
+add_dependencies(target_detector custom_msgs_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(target_tracker_node
