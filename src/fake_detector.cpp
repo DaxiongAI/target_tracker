@@ -21,9 +21,9 @@ public:
     blob_msg.blob_count = 0;
     counter = 0;
 
-    boost::normal_distribution<> nd_aux(5.0, 0.5);
+    boost::normal_distribution<> nd_aux(0.0, 0.3);
     nd = nd_aux;
-    boost::normal_distribution<> nd_aux2(-5.0, 0.5);
+    boost::normal_distribution<> nd_aux2(0.0, 0.3);
     nd_ = nd_aux2;
 
     gaussian_ptr = new boost::variate_generator< boost::mt19937& , boost::normal_distribution<> >(rng, nd);
@@ -40,14 +40,14 @@ public:
     if(counter > 50){
         blob_msg.blob_count = 2;    
         blob_msg.blobs.resize(2);
-        blob_msg.blobs[1].x = (*gaussian_ptr_)();
-        blob_msg.blobs[1].y = (*gaussian_ptr_)();
+        blob_msg.blobs[1].x = -5 + (*gaussian_ptr_)();
+        blob_msg.blobs[1].y = -5 + (*gaussian_ptr_)();
         blob_msg.blobs[1].z = 0; //the target is always on the ground;
             
         //blob_pub.publish(blob_msg);
     }
-    blob_msg.blobs[0].x = (*gaussian_ptr)();
-    blob_msg.blobs[0].y = (*gaussian_ptr)();
+    blob_msg.blobs[0].x = 5 + (*gaussian_ptr)();
+    blob_msg.blobs[0].y = 5 + (*gaussian_ptr)();
     blob_msg.blobs[0].z = 0; //the target is always on the ground;
         
     blob_pub.publish(blob_msg);
