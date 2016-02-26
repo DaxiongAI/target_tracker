@@ -57,7 +57,7 @@ int main (int argc, char** argv)
   custom_msgs::Blobs target_msg;
   TargetFeeder target_feeder;
 
-  ros::Rate loop_rate(10);
+  ros::Rate loop_rate(5);
   while(ros::ok()){ 
       ros::Time now = ros::Time::now(); 
       target_msg.header.stamp = now; 

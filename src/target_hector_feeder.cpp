@@ -31,9 +31,9 @@ public:
                 pp.pose.pose.orientation.y = 0.0;
                 pp.pose.pose.orientation.z = 0.0;
                 pp.pose.pose.orientation.w = 0.0;
-                pp.pose.covariance[0]  = 1; //setting covariance
-                pp.pose.covariance[7]  = 1;
-                pp.pose.covariance[14] = 1;
+                pp.pose.covariance[0]  = 2; //setting covariance
+                pp.pose.covariance[7]  = 2;
+                pp.pose.covariance[14] = 2;
                 pp.pose.covariance[21] = 0.00000000001;
                 pp.pose.covariance[28] = 0.00000000001;
                 pp.pose.covariance[35] = 0.00000000001;
