@@ -23,6 +23,8 @@
 class TargetFeeder
 {
 public:
+    int counter;
+
     ros::Publisher target_pub;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud; //create PCL cloud structure
     TargetFeeder(){
@@ -30,6 +32,7 @@ public:
         target_pub = nh_.advertise<custom_msgs::Blobs>("vision/Targets",1);
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_ ( new pcl::PointCloud<pcl::PointXYZ>); //create PCL cloud structure
         cloud = cloud_;
+        counter = 0;
     }
     void blobCb(const custom_msgs::Blobs::ConstPtr& blob_msg){
         if(blob_msg->blob_count > 0){
@@ -37,7 +40,7 @@ public:
                 point_aux.x = blob_msg->blobs[i].x;
                 point_aux.y = blob_msg->blobs[i].y;
                 point_aux.z = 0;
-        
+                counter = counter + 1; 
                 cloud->insert(cloud->end(), point_aux);
             }
         }
@@ -57,6 +60,15 @@ int main (int argc, char** argv)
   custom_msgs::Blobs target_msg;
   TargetFeeder target_feeder;
 
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+  std::vector<pcl::PointIndices> cluster_indices;
+  
+  pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+  ec.setClusterTolerance(0.5); //max distance between samples of the same cluster (?)
+  ec.setMinClusterSize(50);
+  ec.setMaxClusterSize(25000);
+  ec.setSearchMethod(tree);
+
   ros::Rate loop_rate(5);
   while(ros::ok()){ 
       ros::Time now = ros::Time::now(); 
@@ -65,16 +77,10 @@ int main (int argc, char** argv)
       cloud_aux = *target_feeder.cloud; 
       if(cloud_aux.points.size() > 0){
           // creating kdtree object for the search method of the extraction
-          pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
           tree->setInputCloud(target_feeder.cloud);
           //creating storage for clusters
-          std::vector<pcl::PointIndices> cluster_indices;
           //cluster extraction
-          pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-          ec.setClusterTolerance(0.5); //max distance between samples of the same cluster (?)
-          ec.setMinClusterSize(50);
-          ec.setMaxClusterSize(25000);
-          ec.setSearchMethod(tree);
+          cluster_indices.clear();
           ec.setInputCloud(target_feeder.cloud);
           ec.extract(cluster_indices);
 
@@ -95,13 +101,13 @@ int main (int argc, char** argv)
 
             target_msg.blobs[j].x = centroid(0);
             target_msg.blobs[j].y = centroid(1);
-            target_msg.blobs[j].z = 0; 
+            target_msg.blobs[j].z = cloud_cluster->points.size(); 
             //calculate the covariance
             Eigen::Matrix3f covariance_matrix;
             pcl::computeCovarianceMatrix (*cloud_cluster, centroid, covariance_matrix);
 
-            std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size() << " data points. Its centroid is:\n" << centroid << std::endl;
-            std::cout << "Its covariance matrix is:\n" << covariance_matrix << std::endl; 
+           // std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size() << " data points. Its centroid is:\n" << centroid << std::endl;
+           // std::cout << "Its covariance matrix is:\n" << covariance_matrix << std::endl; 
             j++;
           }
           target_feeder.target_pub.publish(target_msg);
