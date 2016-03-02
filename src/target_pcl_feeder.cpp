@@ -1,5 +1,5 @@
 #include <ros/ros.h>
-
+#include <math.h>
 #include<boost/random.hpp>
 #include<boost/random/normal_distribution.hpp>
 
@@ -20,6 +20,84 @@
 
 #include <custom_msgs/Blobs.h>
 
+#define CLOUDTHRESHOLD 2000  //maximum number of points in the cloud
+#define DIST_THRESHOLD 2     //corresponds to distance in m
+
+//class to define the node where each new target detected is storaged
+class TargetNode
+{
+public:
+    float x;
+    float y;
+    int samples;
+    TargetNode *next;
+
+    TargetNode(){
+        samples = 0;
+        next = NULL;
+    }
+    
+    void addNode(TargetNode node){
+        next = &node;
+    }
+    void updateNode(float nx, float ny, int count, Eigen::Matrix3f covariance){
+        x = nx;
+        y = ny;
+        samples = count;
+        cov_matrix = covariance;
+    }
+private:
+    Eigen::Matrix3f cov_matrix;
+};
+
+//class that mantains a storage of all targets detected
+class TargetHolder
+{
+public:
+    TargetNode target_stg;
+    int target_count;
+
+    TargetHolder(){
+        target_count = 0;
+        targetStg_pub = nh_.advertise<custom_msgs::Blobs>("vision/Stored_Targets",1);
+    }
+    float distance(float vx, float vy, float ux, float uy){
+        float distance = sqrt(pow(vx-ux,2)+pow(vy-uy,2));
+        return distance;
+    }
+    void outputTargets(){
+        if(target_count > 0){
+            target_msg.blob_count = target_count;
+            target_msg.blobs.resize(target_count);
+
+            ros::Time tnow = ros::Time::now(); 
+            target_msg.header.stamp = tnow; 
+
+            TargetNode *aux = &target_stg;
+            int j =  0;
+            float end = false;
+            while(!end){
+                target_msg.blobs[j].x = aux->x;
+                target_msg.blobs[j].y = aux->y;
+                target_msg.blobs[j].z = aux->samples;
+                if(aux->next != NULL){
+                    aux = aux->next;
+                }else{
+                    end = true;
+                }
+                j++;
+            }
+
+            targetStg_pub.publish(target_msg);
+        }
+    }
+private:
+    ros::NodeHandle nh_;
+    ros::Publisher targetStg_pub;
+    custom_msgs::Blobs target_msg;
+};
+
+
 class TargetFeeder
 {
 public:
@@ -27,6 +105,7 @@ public:
 
     ros::Publisher target_pub;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud; //create PCL cloud structure
+
     TargetFeeder(){
         blob_sub   = nh_.subscribe("vision/Blobs", 100, &TargetFeeder::blobCb, this);
         target_pub = nh_.advertise<custom_msgs::Blobs>("vision/Targets",1);
@@ -42,6 +121,11 @@ public:
                 point_aux.z = 0;
                 counter = counter + 1; 
                 cloud->insert(cloud->end(), point_aux);
+
+                if(cloud->points.size() > CLOUDTHRESHOLD){
+                    cloud->erase(cloud->begin());
+                    counter = counter - 1;
+                }
             }
         }
     }
@@ -56,10 +140,14 @@ int main (int argc, char** argv)
   // Initialize ROS
   ros::init (argc, argv, "my_pcl_tutorial");
   ros::NodeHandle nh;
-  
+  //Creates output msg and class for target output
   custom_msgs::Blobs target_msg;
   TargetFeeder target_feeder;
+  
+  //creates instance of TargetHolder for storage of the targets
+  TargetHolder target_holder;  
 
+  // creating kdtree object for the search method of the extraction
   pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
   std::vector<pcl::PointIndices> cluster_indices;
   
@@ -76,7 +164,6 @@ int main (int argc, char** argv)
       pcl::PointCloud<pcl::PointXYZ> cloud_aux;
       cloud_aux = *target_feeder.cloud; 
       if(cloud_aux.points.size() > 0){
-          // creating kdtree object for the search method of the extraction
           tree->setInputCloud(target_feeder.cloud);
           //creating storage for clusters
           //cluster extraction
@@ -98,19 +185,66 @@ int main (int argc, char** argv)
             //calculate centroid
             Eigen::Vector4f centroid;
             pcl::compute3DCentroid(*cloud_cluster, centroid);
-
-            target_msg.blobs[j].x = centroid(0);
-            target_msg.blobs[j].y = centroid(1);
-            target_msg.blobs[j].z = cloud_cluster->points.size(); 
             //calculate the covariance
             Eigen::Matrix3f covariance_matrix;
             pcl::computeCovarianceMatrix (*cloud_cluster, centroid, covariance_matrix);
+            
+            float x_ = centroid(0);
+            float y_ = centroid(1);
+            
+            
+            bool flag = false;
+            float dist;
+            TargetNode* auxNode;
+            auxNode = &(target_holder.target_stg);
+            while(!flag){
+                if(target_holder.target_count != 0){
+                    dist = target_holder.distance(x_ , y_, auxNode->x, auxNode->y);
+                    if(dist < DIST_THRESHOLD){
+                        if(auxNode->samples < cloud_cluster->points.size()){
+                            //
+                            //std::cout << "Updating stored target" << std::endl; 
+                            //
+                            auxNode->updateNode(x_ , y_, cloud_cluster->points.size(), covariance_matrix);        
+                        }
+                        flag = true;
+                    }else{
+                        if(auxNode->next != NULL){
+                            auxNode = auxNode->next;
+                        }else{
+                            break;
+                        }
+                    }
+                }else{
+                    //notice that a cluster is only created if there are at least 50 points to support it
+                    //
+                    //std::cout << "Adding first target to storage" << std::endl; 
+                    //
+                    target_holder.target_stg.updateNode( x_ , y_, cloud_cluster->points.size(), covariance_matrix);
+                    target_holder.target_count++;
+                    flag = true;
+                }
+            }
+            if(auxNode->next == NULL && flag == false){
+                //
+                //std::cout << "Adding new target to target storage..." << std::endl; 
+                //
+                auxNode->next = new TargetNode();
+                auxNode->next->updateNode( x_, y_, cloud_cluster->points.size(), covariance_matrix);
+                target_holder.target_count++;
+            }
+
+            target_msg.blobs[j].x = centroid(0);
+            target_msg.blobs[j].y = centroid(1);
+            target_msg.blobs[j].z = cloud_cluster->points.size();
+
 
            // std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size() << " data points. Its centroid is:\n" << centroid << std::endl;
            // std::cout << "Its covariance matrix is:\n" << covariance_matrix << std::endl; 
             j++;
           }
           target_feeder.target_pub.publish(target_msg);
+          target_holder.outputTargets();
       }
       ros::spinOnce();
       loop_rate.sleep();
