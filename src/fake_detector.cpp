@@ -37,7 +37,7 @@ public:
     blob_msg.blobs.resize(1);
     counter++;
     blob_msg.header.stamp = ros::Time::now();   
-    if(counter > 50){
+    if(counter > 50 && counter < 1750){
         blob_msg.blob_count = 2;    
         blob_msg.blobs.resize(2);
         blob_msg.blobs[1].x = -5 + (*gaussian_ptr_)();
@@ -49,7 +49,7 @@ public:
     blob_msg.blobs[0].x = 5 + (*gaussian_ptr)();
     blob_msg.blobs[0].y = 5 + (*gaussian_ptr)();
     blob_msg.blobs[0].z = 0; //the target is always on the ground;
-        
+     
     blob_pub.publish(blob_msg);
   }
   
